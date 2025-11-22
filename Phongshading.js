@@ -2,6 +2,7 @@
 var canvas;
 var gl;
 var program;
+var cubeMap; // 全局立方体纹理对象
 
 // 场景物体的参数：顶点数
 var skyboxnumPoints;//立方体天空盒顶点数
@@ -186,26 +187,33 @@ function render(){
     gl.clear( gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
 
 	gl.useProgram(program);
-	gl.uniform4fv( gl.getUniformLocation(program,  "u_lightPosition"),flatten(lightPosition) );    
+gl.uniform4fv( gl.getUniformLocation(program,  "u_lightPosition"),flatten(lightPosition) );
     //传递几何变换矩阵，视点和投影矩阵
 	ModelMatrix=formModelMatrix();
 	ViewMatrix=formViewMatrix();
 	ProjectionMatrix=formProjectMatrix();
 	gl.uniformMatrix4fv( gl.getUniformLocation(program,"u_ModelMatrix"), false, flatten(ModelMatrix));
 	gl.uniformMatrix4fv( gl.getUniformLocation(program,"u_ViewMatrix"), false, flatten(ViewMatrix));
-    gl.uniformMatrix4fv( gl.getUniformLocation( program, "u_ProjectionMatrix" ),false, flatten(ProjectionMatrix));	
-    gl.uniformMatrix4fv( gl.getUniformLocation( program, "u_LightSpaceMatrix" ),false, flatten(lightSpaceMatrix));	
-	
+    gl.uniformMatrix4fv( gl.getUniformLocation( program, "u_ProjectionMatrix" ),false, flatten(ProjectionMatrix));
+    gl.uniformMatrix4fv( gl.getUniformLocation( program, "u_LightSpaceMatrix" ),false, flatten(lightSpaceMatrix));
 	gl.uniform3fv( gl.getUniformLocation( program, "viewPos" ), flatten(eyePos));
-	
-	//set texture
-	gl.activeTexture(gl.TEXTURE0);
-	gl.bindTexture(gl.TEXTURE_2D, cubeTexture);
-    gl.uniform1i(gl.getUniformLocation(program, "diffuseTexture"), 0);
+    
+	// 对于镜面立方体，设置深度纹理
 	gl.activeTexture(gl.TEXTURE1);
 	gl.bindTexture(gl.TEXTURE_2D, depthTexture);
-    gl.uniform1i(gl.getUniformLocation(program, "depthTexture"), 1);	
-	gl.drawArrays( gl.TRIANGLES, 0, cubenumPoints);
+    gl.uniform1i(gl.getUniformLocation(program, "depthTexture"), 1);
+    
+    // 为立方体设置反射强度参数和立方体纹理
+    gl.uniform1f( gl.getUniformLocation( program, "reflectivity" ), 0.9);
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, cubeMap);
+    gl.uniform1i(gl.getUniformLocation(program, "cubeSampler"), 2);
+    
+// 绘制立方体，它将使用环境贴图的反射效果
+gl.drawArrays( gl.TRIANGLES, 0, cubenumPoints);
+    
+    // 为地面渲染重置反射强度为0，确保地面不产生镜面反射
+    gl.uniform1f( gl.getUniformLocation( program, "reflectivity" ), 0.0);
 	
 	var Translate = mat4(1, 0, 0, 0,
 					0, 1, 0, -1,

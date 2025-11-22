@@ -4,6 +4,7 @@ precision mediump float;
 out vec4 FragColor;
 
 uniform float ambientStrength, specularStrength, diffuseStrength,shininess;
+uniform float reflectivity; // 反射强度控制
 
 in vec3 Normal;//法向量
 in vec3 FragPos;//相机观察的片元位置
@@ -14,9 +15,9 @@ uniform vec3 viewPos;//相机位置
 uniform vec4 u_lightPosition; //光源位置	
 uniform vec3 lightColor;//入射光颜色
 
-uniform sampler2D diffuseTexture;
 uniform sampler2D depthTexture;
 uniform samplerCube cubeSampler;//盒子纹理采样器
+uniform sampler2D diffuseTexture;//漫反射纹理采样器
 
 
 float shadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
@@ -52,21 +53,21 @@ float shadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
 
 void main()
 {
+    // 计算反射向量
+    vec3 norm = normalize(Normal);
+    vec3 viewDir = normalize(viewPos - FragPos);
+    vec3 reflectDir = reflect(-viewDir, norm);
     
-    //采样纹理颜色
-    vec3 TextureColor = texture(diffuseTexture, TexCoord).xyz;
-
-    //计算光照颜色
- 	vec3 norm = normalize(Normal);
+    // 从环境贴图中采样反射颜色
+    vec3 reflectionColor = texture(cubeSampler, reflectDir).rgb;
+    
+    // 计算光照颜色
 	vec3 lightDir;
 	if(u_lightPosition.w==1.0) 
         lightDir = normalize(u_lightPosition.xyz - FragPos);
 	else lightDir = normalize(u_lightPosition.xyz);
-	vec3 viewDir = normalize(viewPos - FragPos);
 	vec3 halfDir = normalize(viewDir + lightDir);
 
-
-    /*TODO2:根据phong shading方法计算ambient,diffuse,specular*/
     // 声明光照变量
     vec3 ambient, diffuse, specular;
     
@@ -81,14 +82,19 @@ void main()
     float spec = pow(max(dot(norm, halfDir), 0.0), shininess);
     specular = specularStrength * spec * lightColor;
   
-  	vec3 lightReflectColor=(ambient +diffuse + specular);
-
-    //判定是否阴影，并对各种颜色进行混合
+    // 判定是否阴影，并对各种颜色进行混合
     float shadow = shadowCalculation(FragPosLightSpace, norm, lightDir);
-	
-    vec3 resultColor = (ambient + (1.0 - shadow) * (diffuse + specular)) * TextureColor;
     
-    FragColor = vec4(resultColor, 1.f);
+    // 采样漫反射纹理颜色
+    vec4 texColor = texture(diffuseTexture, TexCoord);
+    
+    // 计算Phong光照颜色
+    vec3 phongColor = (ambient + (1.0 - shadow) * (diffuse + specular)) * texColor.rgb;
+    
+    // 根据反射强度混合Phong光照和环境贴图反射
+    vec3 resultColor = mix(phongColor, reflectionColor, reflectivity);
+    
+    FragColor = vec4(resultColor, 1.0);
 }
 
 
